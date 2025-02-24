@@ -39,12 +39,14 @@ class RateLimiter:
 class PromptSelector:
     def __init__(self, trace_file: str, 
                  model_endpoint: str = "http://localhost:8888/v1/chat/completions",
+                 model: str = "deepseek-coder-7b",  
                  qps: float = 2.0,
                  temperature: float = 0.0,
                  api_key: str = "any_key",
                  total_prompts: int = 1):
         self.trace_file = trace_file
         self.model_endpoint = model_endpoint
+        self.model = model
         self.tokenizer = get_tokenizer("", False)
         self.rate_limiter = RateLimiter(qps)
         self.temperature = temperature
@@ -54,7 +56,7 @@ class PromptSelector:
         """Estimate token count using VLLM's tokenizer."""
         return len(self.tokenizer.encode(text))
     
-    def get_completion_tokens(self, prompt: str, model: str = "deepseek-coder-33b-instruct") -> Tuple[Optional[int], Dict]:
+    def get_completion_tokens(self, prompt: str) -> Tuple[Optional[int], Dict]:
         """Get actual completion tokens by querying the model with rate limiting."""
         self.rate_limiter.wait()
         
@@ -64,7 +66,7 @@ class PromptSelector:
         }
         
         data = {
-            "model": model,
+            "model": self.model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": self.temperature
         }
@@ -204,8 +206,9 @@ def parse_args():
                       help='API key for model access (default: any_key)')
     parser.add_argument('--total-prompts', type=int, default=1,
                       help='Number of prompts to generate (default: 1)')
-    return parser.parse_args()
-
+    parser.add_argument('--model', type=str, default='deepseek-coder-7b',
+                      help='Model name to use for completion')
+    return parser.parse_args() 
 def main():
     args = parse_args()
     start_time = time.time()

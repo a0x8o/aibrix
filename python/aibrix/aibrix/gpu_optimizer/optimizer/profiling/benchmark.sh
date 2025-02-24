@@ -41,13 +41,27 @@ generate_workload() {
     local output_len=$2
     local api_key=$3
     local num_prompts=$4
-
+    local model=$5
+    
     echo "  input_len: $input_len"
     echo "  output_len: $output_len"
     echo "  api_key: $api_key"
     echo "  num_prompts: $num_prompts"
+    echo "  model: $model"
+    echo "Generating workload for input=$input_len, output=$output_len, API_KEY=$api_key, num_prompts=$num_prompts, model=$model"
 
-    echo "Generating workload for input=$input_len, output=$output_len, API_KEY=$api_key, num_prompts=$num_prompts"
+    echo "python $PATH_PREFIX/gen_benchmark_prompt.py \
+        $workload  \
+        --input-tokens \"$input_len\" \
+        --min-output-tokens \"$output_len\" \
+        --tolerance \"0.2\" \
+        --qps \"2.0\" \
+        --host \"localhost\" \
+        --port \"8010\" \
+        --api-key \"$api_key\" \
+        --total-prompts \"$num_prompts\" \
+        --model \"$model\""
+
     python $PATH_PREFIX/gen_benchmark_prompt.py \
         $workload  \
         --input-tokens "$input_len" \
@@ -57,7 +71,8 @@ generate_workload() {
         --host "localhost" \
         --port "8010" \
         --api-key "$api_key" \
-        --total-prompts "$num_prompts"
+        --total-prompts "$num_prompts" \
+        --model "$model"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -108,6 +123,7 @@ while [[ $# -gt 0 ]]; do
       ;;
     --api-key)
       LLM_API_KEY=$2
+      debug_print "Set LLM_API_KEY to: $LLM_API_KEY"
       shift 2
       ;;
     --workload)
@@ -160,7 +176,7 @@ while [[ $input_len -le $input_limit ]]; do
   output_len=$output_start
   while [[ $output_len -le $output_limit ]]; do
     # Make sure all arguments are passed in the correct order
-    generate_workload "$input_len" "$output_len" "$LLM_API_KEY" "$TOTAL"
+    generate_workload "$input_len" "$output_len" "$LLM_API_KEY" "$TOTAL" "$MODEL"
   
     # Convert rate_start to integer (multiply by 100 and remove decimals)
     req_rate=$(echo "$rate_start * 100" | bc | cut -d. -f1)
@@ -170,7 +186,7 @@ while [[ $input_len -le $input_limit ]]; do
 
       WORKLOAD_FILE="$PROMPT_DIR/prompt_in${input_len}_out${output_len}.json"
       if [[ -f "$WORKLOAD_FILE" ]]; then
-        python $PATH_PREFIX/gpu_benchmark.py --backend=vllm --port 8010 --model=$MODEL --request-rate=$actual_rate --num-prompts=$TOTAL --input-len $input_len --output-len $output_len --api-key "$LLM_API_KEY" --stream --workload_dataset_file $WORKLOAD_FILE >> "$OUTPUT_FILE" 
+        python $PATH_PREFIX/gpu_benchmark.py --backend=vllm --port 8010 --model=$MODEL --request-rate=$actual_rate --num-prompts=$TOTAL --input-len $input_len --output-len $output_len --api-key "$LLM_API_KEY" --workload_dataset_file $WORKLOAD_FILE >> "$OUTPUT_FILE" 
       fi
       req_rate=$((req_rate * 2)) 
     done
